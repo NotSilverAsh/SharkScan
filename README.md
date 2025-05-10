@@ -1,4 +1,4 @@
-# ⚡ SharkScan - Fast Port Scanner with Bite
+# ⚡ SharkScan - Port Scanner with Bite
 
 <img src="https://i.imgur.com/hDujWJE.jpeg" alt="SharkScan Logo" width="300"/>
 
