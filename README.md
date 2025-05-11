@@ -46,4 +46,4 @@ The easiest way — download the `.exe`, run it, and you’re ready to go.
 Open a terminal (CMD or PowerShell) and type:
 
 ```bash
-./SharkScan
+./sharkscan
