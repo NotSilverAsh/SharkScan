@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 
 class PortScanner
 {
@@ -30,17 +31,15 @@ class PortScanner
 ");
         Console.ResetColor();
 
-        // User input section
+        // User input
         Console.Write("Enter target IP or hostname: ");
         string target = Console.ReadLine();
 
-        // Try to resolve the IP address directly
         IPAddress ip = null;
 
         if (IPAddress.TryParse(target, out ip))
         {
-            // Valid IP address
-            Console.WriteLine($"Target IP resolved: {target}");
+            // Already valid IP
         }
         else
         {
@@ -58,12 +57,26 @@ class PortScanner
             }
         }
 
-        // Port scanning configuration
-        Console.Write("Start port (default 1): ");
+        // 🏓 Ping meter
+        int pingTime = GetPingTime(ip);
+        if (pingTime >= 0)
+        {
+            Console.WriteLine($"Resolved IP: {ip} ({pingTime} ms)");
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Couldn't resolve IP: {target} (ping timeout)");
+            Console.ResetColor();
+            return;
+        }
+
+        // Config
+        Console.Write("Start port (1 - 65535): ");
         int startPort = int.TryParse(Console.ReadLine(), out int sp) ? sp : 1;
 
-        Console.Write("End port (default 65535): ");
-        int endPort = int.TryParse(Console.ReadLine(), out int ep) ? ep : 65535;
+        Console.Write("End port (1 - 65535): ");
+        int endPort = int.TryParse(Console.ReadLine(), out int ep) ? ep : 1;
 
         Console.Write("Timeout (ms): ");
         int timeout = int.TryParse(Console.ReadLine(), out int t) ? t : 1000;
@@ -73,15 +86,12 @@ class PortScanner
 
         Console.WriteLine($"\nScanning {ip} from port {startPort} to {endPort} via {scanType}. This may take a while...\n");
 
-        // Concurrency settings
-        int maxConcurrentTasks = 100;  // Limit the number of simultaneous scans
+        int maxConcurrentTasks = 100;
         var tasks = new List<Task>();
         var results = new Dictionary<int, string>();
 
-        // Port scanning loop
         for (int port = startPort; port <= endPort; port++)
         {
-            // Control the number of concurrent tasks to avoid overwhelming the system
             if (tasks.Count >= maxConcurrentTasks)
             {
                 var completedTask = await Task.WhenAny(tasks);
@@ -101,31 +111,23 @@ class PortScanner
             }
         }
 
-        // Wait for all tasks to complete
         await Task.WhenAll(tasks);
-
-        // Display results in ASCII format
         DisplayScanResults(results);
     }
 
-    // TCP scanning method
+    // TCP method
     static async Task ScanTcpPort(IPAddress ip, int port, int timeout, Dictionary<int, string> results)
     {
         using var client = new TcpClient();
-
         try
         {
             var connectTask = client.ConnectAsync(ip, port);
             var result = await Task.WhenAny(connectTask, Task.Delay(timeout));
 
             if (result == connectTask && client.Connected)
-            {
                 results[port] = "OPEN";
-            }
             else
-            {
                 results[port] = "CLOSED";
-            }
         }
         catch
         {
@@ -133,7 +135,7 @@ class PortScanner
         }
     }
 
-    // UDP scanning method
+    // UDP method
     static async Task ScanUdpPort(IPAddress ip, int port, int timeout, Dictionary<int, string> results)
     {
         using var udpClient = new UdpClient();
@@ -144,13 +146,9 @@ class PortScanner
 
             var receiveTask = udpClient.ReceiveAsync();
             if (await Task.WhenAny(receiveTask, Task.Delay(timeout)) == receiveTask)
-            {
                 results[port] = "OPEN";
-            }
             else
-            {
                 results[port] = "FILTERED";
-            }
         }
         catch
         {
@@ -158,29 +156,24 @@ class PortScanner
         }
     }
 
-    // Display scan results in ASCII with color coding
+    // Display results
     static void DisplayScanResults(Dictionary<int, string> results)
     {
         Console.WriteLine("\nScan Results:\n");
-
-        // Print the header
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine(@" 
    ___________   ___________    
   |   PORT    | |   STATUS   |
-  |___________| |____________|
-");
+  |___________| |____________|");
         Console.ResetColor();
 
-        // Sort the results, placing OPEN ports first
         var sortedResults = results
-            .OrderByDescending(r => r.Value == "OPEN")  // Sort OPEN ports first
-            .ThenBy(r => r.Key)  // Then sort by port number for consistency
+            .OrderByDescending(r => r.Value == "OPEN")
+            .ThenBy(r => r.Key)
             .ToList();
 
         int closedPortCount = 0;
 
-        // Print each result in the desired format
         foreach (var result in sortedResults)
         {
             string status = result.Value;
@@ -192,18 +185,12 @@ class PortScanner
                 _ => ConsoleColor.Gray
             };
 
-            // Display port number and status
             Console.WriteLine($"  | {result.Key,-9} |  {status,-8} |");
             Console.ResetColor();
 
-            // Count closed ports
-            if (status == "CLOSED")
-            {
-                closedPortCount++;
-            }
+            if (status == "CLOSED") closedPortCount++;
         }
 
-        // Display the total number of closed ports
         if (closedPortCount > 0)
         {
             Console.ForegroundColor = ConsoleColor.Red;
@@ -216,6 +203,21 @@ class PortScanner
         else
         {
             Console.WriteLine("\nNo closed ports found.");
+        }
+    }
+
+    // Ping helper
+    static int GetPingTime(IPAddress ip)
+    {
+        try
+        {
+            using var ping = new Ping();
+            var reply = ping.Send(ip, 1000);
+            return reply.Status == IPStatus.Success ? (int)reply.RoundtripTime : -1;
+        }
+        catch
+        {
+            return -1;
         }
     }
 }
