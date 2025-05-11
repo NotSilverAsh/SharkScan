@@ -31,7 +31,7 @@
 ### ✅ Option 1: Use the Compiled Version
 
 The easiest way — download the `.exe`, run it, and you’re ready to go.  
-- Just open a terminal and run `./SharkScan` from the folder where the `.exe` is located.
+- Just open a terminal and run `./sharkscan` from the folder where the `.exe` is located.
 
 ### 🧠 Option 2: Manual Installation
 
